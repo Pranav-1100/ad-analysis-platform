@@ -1,115 +1,253 @@
-import Image from "next/image";
-import localFont from "next/font/local";
-
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
-});
+// pages/index.js
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import FileUpload from '../components/FileUpload';
+import FilePreview from '../components/FilePreview';
+import AnalysisOptionsGrid from '../components/AnalysisOptionsGrid';
+import LoadingAnimation from '../components/LoadingAnimation';
+import { analyzeAd } from '../lib/axios';
+import { AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 
 export default function Home() {
-  return (
-    <div
-      className={`${geistSans.variable} ${geistMono.variable} grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]`}
-    >
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              pages/index.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [selectedOption, setSelectedOption] = useState(null);
+  const [adImage, setAdImage] = useState(null);
+  const [prdFile, setPrdFile] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const handleImageSelect = (file) => {
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      setError('Image size must be less than 10MB');
+      return;
+    }
+    setError(null);
+    setAdImage(file);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedOption || !adImage) return;
+
+    setIsLoading(true);
+    const formData = new FormData();
+    formData.append('image', adImage);
+    if (prdFile) formData.append('prd', prdFile);
+
+    try {
+      const result = await analyzeAd(formData, selectedOption.id);
+      setResult(result);
+    } catch (error) {
+      setError('Analysis failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const ComplianceCard = ({ title, data }) => (
+    <div className="bg-white rounded-lg shadow-md p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+        <div className={`flex items-center space-x-2 px-3 py-1 rounded-full ${
+          data.status === 'PASS' 
+            ? 'bg-green-100 text-green-800' 
+            : 'bg-red-100 text-red-800'
+        }`}>
+          {data.status === 'PASS' 
+            ? <CheckCircle className="w-4 h-4" />
+            : <XCircle className="w-4 h-4" />}
+          <span className="font-medium">{data.status}</span>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+      </div>
+
+      <div className="space-y-4">
+        {Object.entries(data.checks).map(([key, check]) => (
+          <div key={key} className="border-b border-gray-100 pb-3">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-medium text-gray-700">
+                {key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+              </span>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                check.status === 'PASS' 
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-red-100 text-red-700'
+              }`}>
+                {check.status}
+              </span>
+            </div>
+            <p className="text-sm text-gray-600">{check.details}</p>
+          </div>
+        ))}
+
+        {data.issues?.length > 0 && (
+          <div className="mt-4 p-4 bg-red-50 rounded-lg">
+            <h4 className="font-medium text-red-800 mb-2">Issues</h4>
+            <ul className="list-disc list-inside space-y-1">
+              {data.issues.map((issue, i) => (
+                <li key={i} className="text-sm text-red-600">{issue}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {data.recommendations?.length > 0 && (
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+            <h4 className="font-medium text-blue-800 mb-2">Recommendations</h4>
+            <ul className="list-disc list-inside space-y-1">
+              {data.recommendations.map((rec, i) => (
+                <li key={i} className="text-sm text-blue-600">{rec}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-100 to-indigo-100">
+      {isLoading && <LoadingAnimation type={selectedOption?.id} />}
+
+      <div className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-12"
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            Ad Analysis Platform
+          </h1>
+          <p className="text-xl text-gray-600">
+            Select analysis type and upload your files
+          </p>
+        </motion.div>
+
+        <div className="space-y-12">
+          <section>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+              Choose Analysis Type
+            </h2>
+            <AnalysisOptionsGrid
+              selectedOption={selectedOption}
+              onOptionSelect={setSelectedOption}
+            />
+          </section>
+
+          {selectedOption && (
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl"
+            >
+              <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+                Upload Files
+              </h2>
+              
+              {error && (
+                <div className="mb-6 p-4 bg-red-50 rounded-lg flex items-center space-x-2 text-red-800">
+                  <AlertCircle className="w-5 h-5" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-700 mb-4">
+                    Ad Image (Max 10MB)
+                  </h3>
+                  {adImage ? (
+                    <FilePreview
+                      file={adImage}
+                      type="image"
+                      onRemove={() => setAdImage(null)}
+                    />
+                  ) : (
+                    <FileUpload
+                      type="image"
+                      onFileSelect={handleImageSelect}
+                    />
+                  )}
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-medium text-gray-700 mb-4">
+                    PRD Document
+                  </h3>
+                  {prdFile ? (
+                    <FilePreview
+                      file={prdFile}
+                      type="pdf"
+                      onRemove={() => setPrdFile(null)}
+                    />
+                  ) : (
+                    <FileUpload
+                      type="pdf"
+                      onFileSelect={setPrdFile}
+                    />
+                  )}
+                </div>
+              </div>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleSubmit}
+                disabled={!adImage || isLoading}
+                className={`
+                  mt-8 w-full py-4 px-6 rounded-xl text-white font-medium
+                  ${isLoading || !adImage 
+                    ? 'bg-blue-400 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                  }
+                  transition-colors duration-200
+                `}
+              >
+                Start Analysis
+              </motion.button>
+            </motion.section>
+          )}
+
+          {result && (
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl"
+            >
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+                  Analysis Results
+                </h2>
+                <div className={`inline-flex items-center space-x-2 px-4 py-2 rounded-full ${
+                  result.status === 'PASS' 
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-red-100 text-red-800'
+                }`}>
+                  {result.status === 'PASS' 
+                    ? <CheckCircle className="w-5 h-5" />
+                    : <AlertCircle className="w-5 h-5" />}
+                  <span className="font-medium">Overall Status: {result.status}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {Object.entries(result.analysis.qc).map(([key, data]) => {
+                  if (key === 'overall_status') return null;
+                  return (
+                    <ComplianceCard
+                      key={key}
+                      title={key.split('_').map(w => 
+                        w.charAt(0).toUpperCase() + w.slice(1)
+                      ).join(' ')}
+                      data={data}
+                    />
+                  );
+                })}
+              </div>
+            </motion.section>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
