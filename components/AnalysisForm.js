@@ -22,11 +22,21 @@ const AnalysisForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-
+  
     const formData = new FormData();
-    formData.append('image', adImage);
-    if (prdFile) formData.append('prd', prdFile);
-
+    
+    // Be explicit about which endpoint we're hitting
+    if (selectedOption.id === 'qc' || selectedOption.id === 'crm') {
+      formData.append('image', adImage);
+      if (prdFile) formData.append('prd', prdFile);
+    } else if (selectedOption.id === 'batch') {
+      // Handle batch uploads differently
+      formData.append('images', adImage);
+    } else {
+      // For competitor analysis and compare
+      formData.append('image', adImage);
+    }
+  
     try {
       const response = await fetch(selectedOption.endpoint, {
         method: 'POST',
@@ -40,6 +50,7 @@ const AnalysisForm = () => {
       setIsLoading(false);
     }
   };
+
 
   return (
     <div className="max-w-4xl mx-auto p-6">
